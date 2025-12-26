@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <script src="https://cdn.jsdelivr.net/npm/ethers@6.7.0/dist/ethers.umd.min.js"></script>
+<script src="blockchain.js"></script>
+
+  <meta charset="UTF-8">
+  <title>Document Verification (Blockchain)</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      padding: 40px;
+      background: #f4f4f4;
+    }
+    .box {
+      background: white;
+      padding: 20px;
+      margin-bottom: 20px;
+      border-radius: 8px;
+      width: 400px;
+    }
+    button {
+      padding: 8px 15px;
+      cursor: pointer;
+    }
+    p {
+      word-break: break-all;
+    }
+  </style>
+</head>
+<body>
+  <h2>📄 Document Verification using Blockchain</h2>
+  <!-- Upload Section -->
+  <div class="box">
+    <h3>Upload Document</h3>
+    <input type="file" id="uploadFile" />
+    <br><br>
+    <button onclick="uploadDocument()">Upload & Store Hash</button>
+    <p id="uploadResult"></p>
+  </div>
+  <!-- Verify Section -->
+  <div class="box">
+    <h3>Verify Document</h3>
+    <input type="file" id="verifyFile" />
+    <br><br>
+    <button onclick="verifyDocument()">Verify</button>
+    <p id="verifyResult"></p>
+  </div>
+<script>
+  const API_URL = "http://localhost:5000/api";
+  
+  async function uploadDocument() {
+    const fileInput = document.getElementById("uploadFile");
+    if (!fileInput.files.length) {
+      alert("Please select a file");
+      return;
+    }
+    const formData = new FormData();
+    formData.append("document", fileInput.files[0]);
+    
+    const res = await fetch(`${API_URL}/upload`, {
+      method: "POST",
+      body: formData
+    });
+    const data = await res.json();
+document.getElementById("uploadResult").innerText =
+  "Generated Hash: " + data.hash;
+
+// 🔥 STORE HASH ON BLOCKCHAIN (MetaMask will popup)
+await storeHashOnBlockchain(data.hash); "Stored Hash: " + data.hash;
+  }
+  
+  async function verifyDocument() {
+    const fileInput = document.getElementById("verifyFile");
+    if (!fileInput.files.length) {
+      alert("Please select a file");
+      return;
+    }
+    const formData = new FormData();
+    formData.append("document", fileInput.files[0]);
+    
+    // First get hash
+    const uploadRes = await fetch(`${API_URL}/upload`, {
+      method: "POST",
+      body: formData
+    });
+    const uploadData = await uploadRes.json();
+    
+    // Now verify
+    const verifyRes = await fetch(`${API_URL}/verify`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({ hash: uploadData.hash })
+    });
+    const verifyData = await verifyRes.json();
+    document.getElementById("verifyResult").innerText =
+      verifyData.verified ? "✅ Document Verified" : "❌ Document Tampered";
+  }
+</script>
+</body>
+</html>
