@@ -70,33 +70,57 @@ document.getElementById("uploadResult").innerText =
 await storeHashOnBlockchain(data.hash); "Stored Hash: " + data.hash;
   }
   
+  // ... existing uploadDocument function ...
+
   async function verifyDocument() {
     const fileInput = document.getElementById("verifyFile");
+    const resultText = document.getElementById("verifyResult");
+
+    // 1. Validation
     if (!fileInput.files.length) {
-      alert("Please select a file");
+      alert("Please select a file to verify");
       return;
     }
+
+    // Reset UI
+    resultText.innerText = "⏳ Generating Hash...";
+    resultText.style.color = "blue";
+
     const formData = new FormData();
     formData.append("document", fileInput.files[0]);
-    
-    // First get hash
-    const uploadRes = await fetch(`${API_URL}/upload`, {
-      method: "POST",
-      body: formData
-    });
-    const uploadData = await uploadRes.json();
-    
-    // Now verify
-    const verifyRes = await fetch(`${API_URL}/verify`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify({ hash: uploadData.hash })
-    });
-    const verifyData = await verifyRes.json();
-    document.getElementById("verifyResult").innerText =
-      verifyData.verified ? "✅ Document Verified" : "❌ Document Tampered";
+
+    try {
+      // 2. Upload file to Server to get the Hash 
+      // (We reuse the /upload route just to calculate hash, we ignore the storage)
+      const res = await fetch(`${API_URL}/upload`, {
+        method: "POST",
+        body: formData
+      });
+      const data = await res.json();
+      
+      const documentHash = data.hash;
+      console.log("Calculated Hash:", documentHash);
+      
+      // 3. Verify this Hash against Blockchain
+      resultText.innerText = "⏳ Checking Blockchain...";
+      
+      // CALL THE NEW FUNCTION FROM blockchain.js
+      const isVerified = await verifyHashOnBlockchain(documentHash);
+
+      // 4. Show Result
+      if (isVerified) {
+        resultText.innerText = "✅ Verified: Document is Authentic!";
+        resultText.style.color = "green";
+      } else {
+        resultText.innerText = "❌ Failed: Hash not found on Blockchain.";
+        resultText.style.color = "red";
+      }
+
+    } catch (error) {
+      console.error(error);
+      resultText.innerText = "⚠️ Error during verification";
+      resultText.style.color = "orange";
+    }
   }
 </script>
 </body>

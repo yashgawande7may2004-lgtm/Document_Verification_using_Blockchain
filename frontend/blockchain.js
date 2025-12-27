@@ -1,4 +1,4 @@
-const contractAddress = "0x8EE50bcDe03D9C9597878c3e27afDd11B8fA4FD4";
+const contractAddress = "0x5Babc51194F8d309176Bc043cf47F92e54742ceA";
 
 const contractABI = [
   
@@ -79,4 +79,34 @@ async function storeHashOnBlockchain(hash) {
   await tx.wait();
 
   alert("✅ Hash stored on blockchain successfully!");
+}
+// ... existing code (contractAddress, contractABI, storeHashOnBlockchain) ...
+
+// Adapted from your readHash.js for the Browser
+async function verifyHashOnBlockchain(hash) {
+  try {
+    // 1. Check for MetaMask
+    if (!window.ethereum) {
+      alert("MetaMask not installed");
+      return false;
+    }
+
+    // 2. Use BrowserProvider (connects to your MetaMask wallet)
+    const provider = new ethers.BrowserProvider(window.ethereum);
+    
+    // 3. Create Contract Instance (Read-only connection is fine for verification)
+    const contract = new ethers.Contract(contractAddress, contractABI, provider);
+
+    // 4. Call the verifyHash function (matches ABI in readHash.js)
+    console.log("Verifying hash on blockchain:", hash);
+    const isValid = await contract.verifyHash(hash);
+    
+    console.log("Is Valid?", isValid);
+    return isValid;
+
+  } catch (error) {
+    console.error("Error verifying hash:", error);
+    alert("Check console for error details");
+    return false;
+  }
 }
