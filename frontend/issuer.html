@@ -5,10 +5,7 @@
   // --- 🔒 GATEKEEPER SCRIPT ---
   (function checkAccess() {
     const token = localStorage.getItem("token");
-    const role = localStorage.getItem("userRole");
-    // Remove comments below to enable login protection
     // if (!token) { alert("⚠️ Login required."); window.location.href = "index.html"; return; }
-    // if (role !== "issuer") { alert("⛔ Access Denied"); window.location.href = "index.html"; return; }
   })();
   
   function logout() { localStorage.clear(); window.location.href = "index.html"; }
@@ -23,12 +20,27 @@
     /* SHARED CLASSIC THEME */
     body { font-family: "Times New Roman", Times, serif; background-color: #f4f1ea; color: #333; margin: 0; padding: 0; display: flex; flex-direction: column; align-items: center; min-height: 100vh; }
     h2 { text-transform: uppercase; letter-spacing: 2px; border-bottom: 3px double #333; padding-bottom: 15px; margin-top: 50px; margin-bottom: 40px; }
-    .box { background: #fff; padding: 30px; width: 450px; border: 1px solid #c0c0c0; box-shadow: 5px 10px 15px rgba(0,0,0,0.1); text-align: center; margin-bottom: 30px;}
+    
+    /* Box Styles */
+    .box { background: #fff; padding: 30px; width: 500px; border: 1px solid #c0c0c0; box-shadow: 5px 10px 15px rgba(0,0,0,0.1); text-align: center; margin-bottom: 30px;}
+    
+    /* Inputs & Buttons */
     button { background-color: #2c3e50; color: white; border: 1px solid #1a252f; padding: 10px 25px; cursor: pointer; margin-top: 10px; }
     button:hover { background-color: #1a252f; }
     input[type="file"] { margin-bottom: 15px; padding: 10px; background: #fafafa; border: 1px solid #ccc; width: 90%; }
+    
+    /* QR Section */
     #qrSection { display: none; margin-top: 20px; border-top: 1px dashed #999; padding-top: 20px; }
     #qrcode { margin-top: 15px; display: flex; justify-content: center; }
+
+    /* --- HISTORY TABLE STYLES --- */
+    .wide-box { width: 700px; }
+    table { width: 100%; border-collapse: collapse; margin-top: 15px; font-size: 0.9rem; }
+    th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+    th { background-color: #2c3e50; color: white; }
+    tr:nth-child(even) { background-color: #f9f9f9; }
+    a { color: #2980b9; text-decoration: none; }
+    a:hover { text-decoration: underline; }
   </style>
 </head>
 <body>
@@ -50,11 +62,30 @@
     </div>
   </div>
 
+  <div class="box wide-box">
+    <h3>📜 Your Upload History</h3>
+    <button onclick="loadHistory()">🔄 Refresh History</button>
+    <table id="historyTable">
+      <thead>
+        <tr>
+          <th>Hash (Click to Verify)</th>
+          <th>IPFS Link</th>
+          <th>Block #</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr><td colspan="3" style="text-align:center;">Click Refresh to load data...</td></tr>
+      </tbody>
+    </table>
+  </div>
+
 <script>
   // --- 1. CONFIGURATION ---
-  const PINATA_JWT = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySW5mb3JtYXRpb24iOnsiaWQiOiI5YWYyNjhjMi03ZmNkLTQzZjAtYTY2Ny1mMDI3MzZiNTQzZWUiLCJlbWFpbCI6InNhbmRpcGdhd2FuZGU5MDFAZ21haWwuY29tIiwiZW1haWxfdmVyaWZpZWQiOnRydWUsInBpbl9wb2xpY3kiOnsicmVnaW9ucyI6W3siZGVzaXJlZFJlcGxpY2F0aW9uQ291bnQiOjEsImlkIjoiRlJBMSJ9LHsiZGVzaXJlZFJlcGxpY2F0aW9uQ291bnQiOjEsImlkIjoiTllDMSJ9XSwidmVyc2lvbiI6MX0sIm1mYV9lbmFibGVkIjpmYWxzZSwic3RhdHVzIjoiQUNUSVZFIn0sImF1dGhlbnRpY2F0aW9uVHlwZSI6InNjb3BlZEtleSIsInNjb3BlZEtleUtleSI6Ijk4MjBlNzQ1YmY2OGJmMTRkNTlkIiwic2NvcGVkS2V5U2VjcmV0IjoiMmEwN2ZjZjIxMTg2NWQ4Mzc0ODUzOTBjZGUxYzlkMTA1NjdmMGE5YjMyZWQ1ODQ3MzZkYzA0NTQwMTQxMTkxMCIsImV4cCI6MTc5OTM4NTg5MH0.7pfKyup41zCLFKMrijR_s4wsHXXYJToMHfEpEpNg5yI";
+  // Replace with your NEW Key that has 'unpin' permission
+  const PINATA_JWT = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySW5mb3JtYXRpb24iOnsiaWQiOiI5YWYyNjhjMi03ZmNkLTQzZjAtYTY2Ny1mMDI3MzZiNTQzZWUiLCJlbWFpbCI6InNhbmRpcGdhd2FuZGU5MDFAZ21haWwuY29tIiwiZW1haWxfdmVyaWZpZWQiOnRydWUsInBpbl9wb2xpY3kiOnsicmVnaW9ucyI6W3siZGVzaXJlZFJlcGxpY2F0aW9uQ291bnQiOjEsImlkIjoiRlJBMSJ9LHsiZGVzaXJlZFJlcGxpY2F0aW9uQ291bnQiOjEsImlkIjoiTllDMSJ9XSwidmVyc2lvbiI6MX0sIm1mYV9lbmFibGVkIjpmYWxzZSwic3RhdHVzIjoiQUNUSVZFIn0sImF1dGhlbnRpY2F0aW9uVHlwZSI6InNjb3BlZEtleSIsInNjb3BlZEtleUtleSI6ImZlMWRiNjRiYWYxZmM4NTJhODI0Iiwic2NvcGVkS2V5U2VjcmV0IjoiNzliMDA2MTZiNWZiMjUyM2QxNmQ0YzVkZThiMDk5ZWM4NzQwZjBjNzBhNDljMTQ0ZTRhYjY2NjVkMzljYjRhYyIsImV4cCI6MTc5OTU1NjE0OX0.Ouz09V15iLEhU-wpN4D88sDmtCODISr2ol2fuS6IoI8";
+  
   const API_URL = "http://localhost:5000/api";
-  const contractAddress = "0xEB024254d73D078A7719CAC39deD3B0E8D6C3Fc2"; //
+  const contractAddress = "0x0e1B1a889B3007C24Bb8400c132079b72c2cF668"; 
   
   const contractABI = [
     { "anonymous": false, "inputs": [ { "indexed": true, "internalType": "bytes32", "name": "fileHash", "type": "bytes32" }, { "indexed": false, "internalType": "string", "name": "ipfsCid", "type": "string" }, { "indexed": false, "internalType": "address", "name": "owner", "type": "address" } ], "name": "DocumentRegistered", "type": "event" },
@@ -62,39 +93,44 @@
   ];
 
   // --- 2. INTERNAL BLOCKCHAIN FUNCTION ---
-  // We define this directly here to avoid "ReferenceError"
   async function registerDocumentOnBlockchain(hash, cid) {
     console.log("Starting blockchain registration...");
-    
-    if (!window.ethereum) {
-        throw new Error("MetaMask is not installed!");
-    }
+    if (!window.ethereum) throw new Error("MetaMask is not installed!");
 
-    // Connect Wallet
     await window.ethereum.request({ method: "eth_requestAccounts" });
     const provider = new ethers.BrowserProvider(window.ethereum);
     const signer = await provider.getSigner();
-    
-    // Connect Contract
     const contract = new ethers.Contract(contractAddress, contractABI, signer);
 
-    // Format Hash
     if (!hash.startsWith("0x")) hash = "0x" + hash;
 
-    // Send Transaction
     const tx = await contract.registerDocument(hash, cid);
     console.log("Tx Sent:", tx.hash);
-    
-    // Wait for confirmation
     await tx.wait();
     console.log("Tx Confirmed");
   }
 
-  // --- 3. UPLOAD LOGIC ---
+  // --- 3. UNPIN HELPER (Calls your Backend) ---
+  async function unpinFromPinata(cid) {
+      console.log(`🗑️ Rolling back: Requesting server to delete ${cid}...`);
+      try {
+          await fetch(`${API_URL}/unpin`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ cid: cid, pinataJWT: PINATA_JWT })
+          });
+          console.log("✅ Rollback successful. File deleted from IPFS via Server.");
+      } catch (e) {
+          console.error("⚠️ Failed to rollback IPFS upload:", e);
+      }
+  }
+
+  // --- 4. UPLOAD LOGIC ---
   async function uploadDocument() {
     const fileInput = document.getElementById("uploadFile");
     const resultText = document.getElementById("uploadResult");
     const file = fileInput.files[0];
+    let uploadedCid = null; 
 
     if (!file) { alert("Please select a file"); return; }
     
@@ -104,7 +140,7 @@
     const token = localStorage.getItem("token");
 
     try {
-      // A. Get Hash from Backend
+      // A. Get Hash
       const res = await fetch(`${API_URL}/upload`, {
         method: "POST",
         headers: { "Authorization": `Bearer ${token}` },
@@ -113,12 +149,9 @@
 
       if (res.status === 401) { alert("Session expired."); logout(); return; }
       const data = await res.json();
-      if (!data.hash) throw new Error("Server failed to return hash");
-      
       const docHash = data.hash;
-      console.log("Hash received:", docHash);
 
-      // B. Upload to Pinata (IPFS)
+      // B. Upload to IPFS
       resultText.innerText = "⏳ Step 2: Uploading to IPFS...";
       const pinataData = new FormData();
       pinataData.append('file', file);
@@ -129,31 +162,110 @@
           body: pinataData
       });
       const pinJson = await pinRes.json();
-      const ipfsCid = pinJson.IpfsHash;
-      console.log("IPFS CID:", ipfsCid);
+      uploadedCid = pinJson.IpfsHash; 
+      console.log("IPFS CID:", uploadedCid);
 
       // C. Register on Blockchain
-      resultText.innerText = `⏳ Step 3: Blockchain Transaction... (Check MetaMask)`;
+      resultText.innerText = `⏳ Step 3: Waiting for MetaMask Confirmation...`;
+      await registerDocumentOnBlockchain(docHash, uploadedCid);
       
-      // CALL INTERNAL FUNCTION
-      await registerDocumentOnBlockchain(docHash, ipfsCid);
-      
-      resultText.innerText = `✅ Success! \nHash: ${docHash} \nCID: ${ipfsCid}`;
-      window.currentDocHash = docHash; // Save for QR
+      resultText.innerText = `✅ Success! \nHash: ${docHash} \nCID: ${uploadedCid}`;
+      window.currentDocHash = docHash; 
       document.getElementById("qrSection").style.display = "block";
 
     } catch (err) {
       console.error(err);
-      resultText.innerText = "❌ Error: " + (err.reason || err.message);
+      const errorMessage = err.reason || err.message || JSON.stringify(err);
+
+      // Smart Rollback Logic
+      if (errorMessage.includes("already registered")) {
+          resultText.innerText = "⚠️ Document is already registered on the Blockchain!";
+          resultText.style.color = "orange";
+      } else if (uploadedCid) {
+          resultText.innerText = "❌ Transaction Failed/Cancelled. Cleaning up IPFS...";
+          await unpinFromPinata(uploadedCid); 
+          resultText.innerText = "❌ Transaction Cancelled. Orphan file removed.";
+      } else {
+          resultText.innerText = "❌ Error: " + errorMessage;
+      }
     }
   }
 
-  function generateQR() {
-    if (!window.currentDocHash) return;
-    const verificationLink = window.location.href.replace('issuer.html', 'scan.html') + `?hash=${window.currentDocHash}`;
-    const qrContainer = document.getElementById("qrcode");
-    qrContainer.innerHTML = ""; 
-    new QRCode(qrContainer, { text: verificationLink, width: 128, height: 128 });
+  // --- 5. HISTORY LOGIC ---
+ // --- 5. ROBUST HISTORY LOGIC (Chunking) ---
+  async function loadHistory() {
+    const tableBody = document.querySelector("#historyTable tbody");
+    tableBody.innerHTML = "<tr><td colspan='3'>Scanning blockchain (this may take a moment)...</td></tr>";
+
+    if (!window.ethereum) return alert("MetaMask required");
+    
+    try {
+      const provider = new ethers.BrowserProvider(window.ethereum);
+      const signer = await provider.getSigner();
+      const userAddress = await signer.getAddress();
+      const contract = new ethers.Contract(contractAddress, contractABI, provider);
+
+      // 1. Get Current Block
+      const currentBlock = await provider.getBlockNumber();
+      
+      // 2. Define Scanning Range 
+      // We scan the last 100,000 blocks in batches of 40,000 to avoid errors.
+      // You can increase 'TOTAL_BLOCKS_TO_SCAN' if you need older history.
+      const CHUNK_SIZE = 40000; 
+      const TOTAL_BLOCKS_TO_SCAN = 200000; 
+      
+      let startBlock = currentBlock - TOTAL_BLOCKS_TO_SCAN;
+      if (startBlock < 0) startBlock = 0;
+
+      let allEvents = [];
+      
+      console.log(`Scanning from ${startBlock} to ${currentBlock} in chunks...`);
+
+      // 3. Batch Request Loop
+      for (let i = startBlock; i < currentBlock; i += CHUNK_SIZE) {
+          const from = i;
+          const to = Math.min(i + CHUNK_SIZE - 1, currentBlock);
+          
+          try {
+            const events = await contract.queryFilter("DocumentRegistered", from, to);
+            allEvents.push(...events);
+          } catch (err) {
+            console.warn(`Skipping chunk ${from}-${to} due to error or no events.`);
+          }
+      }
+
+      // 4. Filter by YOUR address (Case insensitive)
+      const myEvents = allEvents.filter(e => e.args[2].toLowerCase() === userAddress.toLowerCase());
+
+      tableBody.innerHTML = "";
+      if (myEvents.length === 0) {
+         tableBody.innerHTML = "<tr><td colspan='3'>No documents found in recent history.</td></tr>";
+         return;
+      }
+
+      // 5. Display Results (Newest first)
+      myEvents.reverse().forEach(e => {
+         const hash = e.args[0];
+         const cid = e.args[1];
+         // Create short hash (0x123...abc)
+         const shortHash = hash.substring(0, 10) + "..." + hash.substring(60);
+         
+         const scanLink = window.location.href.replace('issuer.html', 'scan.html') + `?hash=${hash}`;
+         
+         const row = `
+           <tr>
+             <td><a href="${scanLink}" target="_blank">🔗 ${shortHash}</a></td>
+             <td><a href="https://gateway.pinata.cloud/ipfs/${cid}" target="_blank">📄 View File</a></td>
+             <td>${e.blockNumber}</td>
+           </tr>
+         `;
+         tableBody.innerHTML += row;
+      });
+
+    } catch (e) {
+      console.error(e);
+      tableBody.innerHTML = `<tr><td colspan='3' style="color:red">Error: ${e.message}</td></tr>`;
+    }
   }
 </script>
 </body>

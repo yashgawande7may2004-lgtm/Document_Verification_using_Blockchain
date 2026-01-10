@@ -7,7 +7,7 @@
   <script>
     (function checkAccess() {
       const token = localStorage.getItem("token");
-      // Uncomment lines below if you want to force login for verifiers too
+      // Uncomment to force login
       // if (!token) { alert("⚠️ Login required."); window.location.href = "index.html"; return; }
     })();
     
@@ -20,7 +20,6 @@
     /* SHARED THEME */
     body { font-family: "Times New Roman", Times, serif; background-color: #f4f1ea; color: #333; margin: 0; padding: 0; display: flex; flex-direction: column; align-items: center; min-height: 100vh; }
     
-    /* Header Style */
     h2 { text-transform: uppercase; letter-spacing: 2px; border-bottom: 3px double #333; padding-bottom: 15px; margin-top: 50px; margin-bottom: 40px; }
     
     /* Main Card */
@@ -29,7 +28,9 @@
     /* Inputs & Buttons */
     button { background-color: #2c3e50; color: white; border: 1px solid #1a252f; padding: 10px 25px; cursor: pointer; margin-top: 15px; font-size: 1rem; }
     button:hover { background-color: #1a252f; }
+    
     input[type="file"] { margin-bottom: 15px; padding: 10px; background: #fafafa; border: 1px solid #ccc; width: 90%; }
+    input[type="text"] { padding: 10px; width: 90%; border: 1px solid #ccc; font-family: monospace; }
     
     /* Results Area */
     #verifyResult { 
@@ -40,8 +41,11 @@
       word-wrap: break-word;
       min-height: 50px;
     }
+
+    /* Dividers */
+    .divider { border-top: 1px dashed #ccc; margin: 25px 0; position: relative; }
+    .divider span { background: #fff; padding: 0 10px; position: absolute; top: -10px; left: 50%; transform: translateX(-50%); color: #777; font-size: 0.8rem; }
     
-    /* Menu Button */
     .menu-btn { position: absolute; top: 20px; right: 20px; font-size: 1rem; background: #e74c3c; border: none; padding: 5px 15px; }
   </style>
 </head>
@@ -52,12 +56,20 @@
   <h2>🔍 Document Verifier</h2>
   
   <div class="box">
-    <h3>Check Authenticity</h3>
-    <p style="font-size: 0.9rem; color: #666;">Upload a file to check if it exists on the blockchain.</p>
     
+    <h3>Option 1: Upload File</h3>
+    <p style="font-size: 0.9rem; color: #666;">Select a file to check if it exists on the blockchain.</p>
     <input type="file" id="verifyFile" />
     <br>
-    <button onclick="verifyDocument()">Verify Document</button>
+    <button onclick="verifyByFile()">Verify File</button>
+
+    <div class="divider"><span>OR</span></div>
+
+    <h3>Option 2: Paste Hash</h3>
+    <p style="font-size: 0.9rem; color: #666;">Enter the SHA-256 hash manually.</p>
+    <input type="text" id="manualHash" placeholder="0x..." />
+    <br>
+    <button onclick="verifyByInput()">Verify Hash String</button>
     
     <div id="verifyResult">
       Waiting for input...
@@ -67,14 +79,12 @@
 <script>
   // --- CONFIGURATION ---
   const API_URL = "http://localhost:5000/api";
-  const contractAddress = "0xEB024254d73D078A7719CAC39deD3B0E8D6C3Fc2"; //
-  
+  const contractAddress = "0x0e1B1a889B3007C24Bb8400c132079b72c2cF668"; 
   const contractABI = [
     { "inputs": [ { "internalType": "bytes32", "name": "_fileHash", "type": "bytes32" } ], "name": "getCid", "outputs": [ { "internalType": "string", "name": "", "type": "string" } ], "stateMutability": "view", "type": "function" }
   ];
 
   // --- INTERNAL BLOCKCHAIN FUNCTION ---
-  // defined locally to avoid external file issues
   async function verifyHashOnBlockchain(hash) {
     if (!window.ethereum) {
       alert("MetaMask is required to read from the blockchain.");
@@ -83,15 +93,13 @@
 
     try {
       const provider = new ethers.BrowserProvider(window.ethereum);
-      // Read-only connection is fine
       const contract = new ethers.Contract(contractAddress, contractABI, provider);
 
       if (!hash.startsWith("0x")) hash = "0x" + hash;
 
-      // Call smart contract
       const cid = await contract.getCid(hash);
       console.log("Found CID:", cid);
-      return cid; // Return the CID string if found
+      return cid; 
 
     } catch (error) {
       console.warn("Hash not found or error:", error);
@@ -99,41 +107,69 @@
     }
   }
 
-  // --- MAIN VERIFY LOGIC ---
-  async function verifyDocument() {
+  // --- UI HELPER: SHOW RESULTS ---
+  function displayResult(cid) {
+    const resultText = document.getElementById("verifyResult");
+    if (cid) {
+        resultText.style.color = "darkgreen";
+        resultText.style.borderLeft = "4px solid darkgreen";
+        resultText.style.backgroundColor = "#e8f5e9";
+        resultText.innerHTML = `
+            <h4 style="margin:0; margin-bottom:5px;">✅ Verified Authenticity!</h4>
+            <span style="font-size:0.9rem">The document hash matches our blockchain records.</span><br><br>
+            <strong>🔗 View Original:</strong> 
+            <a href="https://gateway.pinata.cloud/ipfs/${cid}" target="_blank" style="color: blue; text-decoration: underline;">
+                Open in IPFS
+            </a>
+        `;
+    } else {
+        resultText.style.color = "#c0392b";
+        resultText.style.borderLeft = "4px solid #c0392b";
+        resultText.style.backgroundColor = "#fadbd8";
+        resultText.innerHTML = `
+            <h4 style="margin:0; margin-bottom:5px;">❌ Verification Failed</h4>
+            <span style="font-size:0.9rem">This document hash was not found in the registry. It may be modified or fake.</span>
+        `;
+    }
+  }
+
+  // --- LOGIC 1: VERIFY BY INPUT ---
+  async function verifyByInput() {
+    const hashInput = document.getElementById("manualHash").value.trim();
+    const resultText = document.getElementById("verifyResult");
+
+    if (hashInput.length < 10) { alert("Please enter a valid hash"); return; }
+
+    resultText.innerHTML = "⏳ Checking Blockchain Registry...";
+    const cid = await verifyHashOnBlockchain(hashInput);
+    displayResult(cid);
+  }
+
+  // --- LOGIC 2: VERIFY BY FILE ---
+  async function verifyByFile() {
     const fileInput = document.getElementById("verifyFile");
     const resultText = document.getElementById("verifyResult");
 
-    // 1. Basic Validation
-    if (!fileInput.files.length) {
-      alert("Please select a file to verify");
-      return;
-    }
+    if (!fileInput.files.length) { alert("Please select a file to verify"); return; }
 
     resultText.innerHTML = "⏳ Generating Hash...";
     resultText.style.color = "#2c3e50"; 
     resultText.style.borderLeft = "3px solid #888";
 
-    // 2. Hash Generation (via Backend)
     const formData = new FormData();
     formData.append("document", fileInput.files[0]);
-    
-    // Note: If you removed token check in backend for verification, remove the header below
     const token = localStorage.getItem("token"); 
 
     try {
+      // Get Hash from Server
       const res = await fetch(`${API_URL}/upload`, {
         method: "POST",
-        headers: {
-            "Authorization": `Bearer ${token}` 
-        },
+        headers: { "Authorization": `Bearer ${token}` },
         body: formData
       });
 
       if (res.status === 401 || res.status === 403) {
-          alert("Session expired. Please login again.");
-          logout();
-          return;
+          alert("Session expired. Please login again."); logout(); return;
       }
 
       const data = await res.json();
@@ -142,37 +178,12 @@
       
       resultText.innerHTML = "⏳ Checking Blockchain Registry...";
       
-      // 3. Verify on Blockchain 
-      const ipfsCid = await verifyHashOnBlockchain(documentHash);
-
-      if (ipfsCid) {
-        // SUCCESS CASE
-        resultText.style.color = "darkgreen";
-        resultText.style.borderLeft = "4px solid darkgreen";
-        resultText.style.backgroundColor = "#e8f5e9";
-        resultText.innerHTML = `
-            <h4 style="margin:0; margin-bottom:5px;">✅ Verified Authenticity!</h4>
-            <span style="font-size:0.9rem">The document hash matches our blockchain records.</span><br><br>
-            <strong>🔗 View Original:</strong> 
-            <a href="https://gateway.pinata.cloud/ipfs/${ipfsCid}" target="_blank" style="color: blue; text-decoration: underline;">
-                Open in IPFS
-            </a>
-        `;
-      } else {
-        // FAILURE CASE
-        resultText.style.color = "#c0392b";
-        resultText.style.borderLeft = "4px solid #c0392b";
-        resultText.style.backgroundColor = "#fadbd8";
-        resultText.innerHTML = `
-            <h4 style="margin:0; margin-bottom:5px;">❌ Verification Failed</h4>
-            <span style="font-size:0.9rem">This document hash was not found in the registry. It may be modified or fake.</span>
-        `;
-      }
+      const cid = await verifyHashOnBlockchain(documentHash);
+      displayResult(cid);
 
     } catch (error) {
       console.error(error);
       resultText.innerText = "⚠️ Error during verification. Check console.";
-      resultText.style.color = "#8b4500";
     }
   }
 </script>
