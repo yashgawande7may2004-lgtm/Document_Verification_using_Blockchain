@@ -150,7 +150,7 @@
 
   function generateQR() {
     if (!window.currentDocHash) return;
-    const verificationLink = `${window.location.origin}/scan.html?hash=${window.currentDocHash}`;
+    const verificationLink = window.location.href.replace('issuer.html', 'scan.html') + `?hash=${window.currentDocHash}`;
     const qrContainer = document.getElementById("qrcode");
     qrContainer.innerHTML = ""; 
     new QRCode(qrContainer, { text: verificationLink, width: 128, height: 128 });
