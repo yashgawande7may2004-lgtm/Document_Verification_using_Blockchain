@@ -1,7 +1,9 @@
+require("dotenv").config();
 const express = require("express");
 const cors = require("cors");
 const mongoose = require("mongoose"); 
 const axios = require("axios"); // <--- Added for Pinata communication
+
 
 // IMPORT ROUTES
 const uploadRoute = require("./routes/upload");
@@ -22,7 +24,9 @@ app.use("/api/auth", authRoute);
 
 // 3. NEW: IPFS Rollback Route (Fixes CORS Issue)
 app.post("/api/unpin", async (req, res) => {
-  const { cid, pinataJWT } = req.body;
+  const { cid } = req.body;
+// SECURITY UPGRADE: Read key from .env instead of req.body
+  const pinataJWT = process.env.PINATA_JWT;
 
   if (!cid || !pinataJWT) {
     return res.status(400).json({ message: "Missing CID or JWT" });
@@ -45,11 +49,7 @@ app.post("/api/unpin", async (req, res) => {
   }
 });
 
-
-// --- DATABASE CONNECTION ---
-// Note: It is unsafe to share this link publicly because it has your password. 
-// For now it is fine, but later use a .env file.
-const dbURI = "mongodb+srv://YashGawandeDb:YashGawande@docverificationusingbc.3dkpd1k.mongodb.net/docverify?retryWrites=true&w=majority&appName=DocVerificationUsingBC"; //
+const dbURI = process.env.MONGO_URI;
 
 mongoose.connect(dbURI)
   .then(() => {
@@ -60,7 +60,7 @@ mongoose.connect(dbURI)
   });
 
 // START SERVER
-const PORT = 5000;
+const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });

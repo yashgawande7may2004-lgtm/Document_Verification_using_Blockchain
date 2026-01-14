@@ -6,7 +6,7 @@ const User = require("../models/User");
 const router = express.Router();
 
 // SECRET KEY for signing tokens (Keep this secret in production!)
-const JWT_SECRET = "supersecretkey123"; 
+const JWT_SECRET = process.env.JWT_SECRET;
 
 // REGISTER
 router.post("/register", async (req, res) => {

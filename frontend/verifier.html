@@ -15,7 +15,8 @@
   </script>
 
   <script src="https://cdn.jsdelivr.net/npm/ethers@6.7.0/dist/ethers.umd.min.js"></script>
-
+  
+ <script src="config.js"></script>
   <style>
     /* SHARED THEME */
     body { font-family: "Times New Roman", Times, serif; background-color: #f4f1ea; color: #333; margin: 0; padding: 0; display: flex; flex-direction: column; align-items: center; min-height: 100vh; }
@@ -48,6 +49,7 @@
     
     .menu-btn { position: absolute; top: 20px; right: 20px; font-size: 1rem; background: #e74c3c; border: none; padding: 5px 15px; }
   </style>
+  
 </head>
 <body>
 
@@ -78,8 +80,8 @@
 
 <script>
   // --- CONFIGURATION ---
-  const API_URL = "http://localhost:5000/api";
-  const contractAddress = "0x0e1B1a889B3007C24Bb8400c132079b72c2cF668"; 
+  const API_URL = CONFIG.API_URL;;
+  const contractAddress = CONFIG.CONTRACT_ADDRESS;
   const contractABI = [
     { "inputs": [ { "internalType": "bytes32", "name": "_fileHash", "type": "bytes32" } ], "name": "getCid", "outputs": [ { "internalType": "string", "name": "", "type": "string" } ], "stateMutability": "view", "type": "function" }
   ];

@@ -14,6 +14,8 @@
   <script src="https://cdn.jsdelivr.net/npm/ethers@6.7.0/dist/ethers.umd.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 
+  <script src="config.js"></script>
+
   <meta charset="UTF-8">
   <title>Issuer Dashboard</title>
   <style>
@@ -42,6 +44,7 @@
     a { color: #2980b9; text-decoration: none; }
     a:hover { text-decoration: underline; }
   </style>
+  
 </head>
 <body>
 
@@ -82,10 +85,10 @@
 <script>
   // --- 1. CONFIGURATION ---
   // Replace with your NEW Key that has 'unpin' permission
-  const PINATA_JWT = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySW5mb3JtYXRpb24iOnsiaWQiOiI5YWYyNjhjMi03ZmNkLTQzZjAtYTY2Ny1mMDI3MzZiNTQzZWUiLCJlbWFpbCI6InNhbmRpcGdhd2FuZGU5MDFAZ21haWwuY29tIiwiZW1haWxfdmVyaWZpZWQiOnRydWUsInBpbl9wb2xpY3kiOnsicmVnaW9ucyI6W3siZGVzaXJlZFJlcGxpY2F0aW9uQ291bnQiOjEsImlkIjoiRlJBMSJ9LHsiZGVzaXJlZFJlcGxpY2F0aW9uQ291bnQiOjEsImlkIjoiTllDMSJ9XSwidmVyc2lvbiI6MX0sIm1mYV9lbmFibGVkIjpmYWxzZSwic3RhdHVzIjoiQUNUSVZFIn0sImF1dGhlbnRpY2F0aW9uVHlwZSI6InNjb3BlZEtleSIsInNjb3BlZEtleUtleSI6ImZlMWRiNjRiYWYxZmM4NTJhODI0Iiwic2NvcGVkS2V5U2VjcmV0IjoiNzliMDA2MTZiNWZiMjUyM2QxNmQ0YzVkZThiMDk5ZWM4NzQwZjBjNzBhNDljMTQ0ZTRhYjY2NjVkMzljYjRhYyIsImV4cCI6MTc5OTU1NjE0OX0.Ouz09V15iLEhU-wpN4D88sDmtCODISr2ol2fuS6IoI8";
+  const PINATA_JWT = CONFIG.PINATA_JWT;
   
-  const API_URL = "http://localhost:5000/api";
-  const contractAddress = "0x0e1B1a889B3007C24Bb8400c132079b72c2cF668"; 
+  const API_URL = CONFIG.API_URL;
+  const contractAddress = CONFIG.CONTRACT_ADDRESS; 
   
   const contractABI = [
     { "anonymous": false, "inputs": [ { "indexed": true, "internalType": "bytes32", "name": "fileHash", "type": "bytes32" }, { "indexed": false, "internalType": "string", "name": "ipfsCid", "type": "string" }, { "indexed": false, "internalType": "address", "name": "owner", "type": "address" } ], "name": "DocumentRegistered", "type": "event" },
@@ -266,6 +269,28 @@
       console.error(e);
       tableBody.innerHTML = `<tr><td colspan='3' style="color:red">Error: ${e.message}</td></tr>`;
     }
+  }
+
+  // --- QR CODE FUNCTION ---
+  function generateQR() {
+    if (!window.currentDocHash) {
+        alert("Please upload a document first!");
+        return;
+    }
+    
+    // Construct the link: Replaces 'issuer.html' with 'scan.html' and adds the hash
+    const verificationLink = window.location.href.replace('issuer.html', 'scan.html') + `?hash=${window.currentDocHash}`;
+    
+    // Clear previous QR code
+    const qrContainer = document.getElementById("qrcode");
+    qrContainer.innerHTML = ""; 
+    
+    // Generate new QR
+    new QRCode(qrContainer, { 
+        text: verificationLink, 
+        width: 128, 
+        height: 128 
+    });
   }
 </script>
 </body>

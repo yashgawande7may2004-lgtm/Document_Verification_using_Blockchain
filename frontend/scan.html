@@ -4,6 +4,8 @@
   <meta charset="UTF-8">
   <title>Instant Verification</title>
   <script src="https://cdn.jsdelivr.net/npm/ethers@6.7.0/dist/ethers.umd.min.js"></script>
+
+  <script src="config.js"></script>
   
   <style>
     /* Consistent "Classic" Theme */
@@ -58,7 +60,7 @@
 
 <script>
   // --- 1. Embedded Blockchain Config (No external file needed) ---
-  const contractAddress = "0x0e1B1a889B3007C24Bb8400c132079b72c2cF668"; //
+  const contractAddress = CONFIG.CONTRACT_ADDRESS; //
   const contractABI = [
     { "inputs": [ { "internalType": "bytes32", "name": "_fileHash", "type": "bytes32" } ], "name": "getCid", "outputs": [ { "internalType": "string", "name": "", "type": "string" } ], "stateMutability": "view", "type": "function" }
   ];
