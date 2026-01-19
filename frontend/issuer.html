@@ -6,7 +6,7 @@
   (function checkAccess() {
     const token = localStorage.getItem("token");
     // Uncomment next line to enforce login
-    //if (!token) { alert("⚠️ Login required."); window.location.href = "index.html"; return; }
+    // if (!token) { alert("⚠️ Login required."); window.location.href = "index.html"; return; }
   })();
   
   function logout() { localStorage.clear(); window.location.href = "index.html"; }
@@ -37,7 +37,7 @@
     #qrcode { margin-top: 15px; display: flex; justify-content: center; }
 
     /* --- HISTORY TABLE STYLES --- */
-    .wide-box { width: 700px; }
+    .wide-box { width: 800px; } /* Wider to fit 4 columns */
     table { width: 100%; border-collapse: collapse; margin-top: 15px; font-size: 0.9rem; }
     th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
     th { background-color: #2c3e50; color: white; }
@@ -49,6 +49,27 @@
 </head>
 <body>
 
+  <div id="auditModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); align-items:center; justify-content:center; z-index: 1000;">
+    <div style="background:white; padding:20px; width:600px; max-height:80vh; overflow-y:auto; border-radius:8px; box-shadow:0 4px 10px rgba(0,0,0,0.3);">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px;">
+            <h3 style="margin:0;">🕵️ Audit Trail</h3>
+            <button onclick="document.getElementById('auditModal').style.display='none'" style="background:red; padding:5px 10px; margin:0; border:none; color:white; cursor:pointer;">Close</button>
+        </div>
+        
+        <table style="width:100%; border-collapse:collapse; font-size:0.85rem;">
+            <thead>
+                <tr style="background:#eee;">
+                    <th style="padding:8px; text-align:left;">Time</th>
+                    <th style="padding:8px; text-align:left;">Verifier Wallet</th>
+                    <th style="padding:8px; text-align:left;">Status</th>
+                </tr>
+            </thead>
+            <tbody id="auditList">
+                </tbody>
+        </table>
+    </div>
+  </div>
+
   <h2>🏛️ Authority Dashboard</h2>
   
   <div class="box">
@@ -57,7 +78,6 @@
     <input type="file" id="uploadFile" onchange="showDecisionGate()" />
     
     <div id="decisionGate" style="display:none; text-align: left; background: #fff8e1; padding: 15px; border-left: 5px solid #ffa000; margin: 20px 0;">
-      
       <h4 style="margin-top:0; color: #d35400;">🤔 Smart Feature: Embed QR?</h4>
       <p style="font-size: 0.9rem; color: #555;">
         We can automatically place a <strong>Verification QR Code</strong> directly onto this document.
@@ -82,7 +102,6 @@
     </div>
 
     <div id="previewSection" style="display:none; text-align: center; border: 1px solid #ccc; padding: 15px; margin-top: 20px;">
-      
       <h4>✨ Interactive Preview</h4>
       <p id="aiMessage" style="font-size: 0.9rem; color: #555;">AI has suggested a spot.</p>
       <p style="font-size: 0.8rem; color: #2980b9; font-weight: bold;">
@@ -131,10 +150,11 @@
           <th>Hash (Click to Verify)</th>
           <th>IPFS Link</th>
           <th>Block #</th>
+          <th>Actions</th> 
         </tr>
       </thead>
       <tbody>
-        <tr><td colspan="3" style="text-align:center;">Click Refresh to load data...</td></tr>
+        <tr><td colspan="4" style="text-align:center;">Click Refresh to load data...</td></tr>
       </tbody>
     </table>
   </div>
@@ -152,7 +172,7 @@
 
   // --- SMART QR VARIABLES ---
   let finalUploadBlob = null;
-  let useSmartQR = false;
+  let useSmartQR = false; // Prevents "undefined" error
   let qrState = { x: 0, y: 0, size: 150, img: null, qrImg: null }; 
   let isDragging = false;
   let dragOffset = { x: 0, y: 0 };
@@ -168,7 +188,7 @@
       document.getElementById("qrSection").style.display = "none";
       document.getElementById("previewSection").style.display = "none";
       document.getElementById("uploadResult").innerText = "Waiting for decision...";
-      finalUploadBlob = null; // Clear previous blobs
+      finalUploadBlob = null; 
 
       if (fileInput.files.length > 0) {
           decisionGate.style.display = "block";
@@ -179,11 +199,10 @@
 
   function handleDecision(choice) {
       document.getElementById("decisionGate").style.display = "none";
-      
       if (choice === 'yes') {
-          processSmartQR(); // Trigger Interactive Studio
+          processSmartQR(); 
       } else {
-          // Standard Mode
+          useSmartQR = false;
           document.getElementById("uploadActions").style.display = "block";
       }
   }
@@ -199,6 +218,7 @@
           return;
       }
 
+      useSmartQR = true;
       document.getElementById("previewSection").style.display = "block";
       document.getElementById("aiMessage").innerText = "🤖 Analyzing document...";
 
@@ -206,7 +226,7 @@
       reader.onload = function(event) {
           const img = new Image();
           img.onload = function() {
-              qrState.img = img; // Save original image
+              qrState.img = img; 
               initInteractiveCanvas(img);
           };
           img.src = event.target.result;
@@ -218,33 +238,26 @@
       const canvas = document.getElementById("docCanvas");
       const ctx = canvas.getContext("2d");
 
-      // Set Canvas Size
       canvas.width = img.width;
       canvas.height = img.height;
 
-      // Generate Temp QR (Hidden)
       const tempQRDiv = document.getElementById("qrcode");
       tempQRDiv.innerHTML = "";
       
-      // Construct Future Link
       const futureLink = window.location.href.replace('issuer.html', 'scan.html') + "?check=secure";
       new QRCode(tempQRDiv, { text: futureLink, width: 256, height: 256 });
 
-      // Wait for QR to render, then start interaction
       setTimeout(() => {
           const qrSrc = tempQRDiv.querySelector("img").src;
           const qrImg = new Image();
           qrImg.onload = function() {
               qrState.qrImg = qrImg;
-              
-              // Initial Position (Bottom Right Default)
               qrState.size = 150; 
               qrState.x = canvas.width - qrState.size - 50;
               qrState.y = canvas.height - qrState.size - 50;
               
               document.getElementById("aiMessage").innerText = "✅ Ready! Drag to move | Use slider to resize.";
               
-              // Start Loop
               drawCanvas();
               addCanvasListeners(canvas);
           };
@@ -256,15 +269,11 @@
       const canvas = document.getElementById("docCanvas");
       const ctx = canvas.getContext("2d");
 
-      // 1. Clear & Draw Doc
       ctx.clearRect(0, 0, canvas.width, canvas.height);
       ctx.drawImage(qrState.img, 0, 0);
 
-      // 2. Draw White Background for QR
       ctx.fillStyle = "white";
       ctx.fillRect(qrState.x - 5, qrState.y - 5, qrState.size + 10, qrState.size + 10);
-
-      // 3. Draw QR Code
       ctx.drawImage(qrState.qrImg, qrState.x, qrState.y, qrState.size, qrState.size);
   }
 
@@ -309,7 +318,6 @@
 
   function confirmSmartQR() {
       const canvas = document.getElementById("docCanvas");
-      // Convert Canvas to Blob
       canvas.toBlob(function(blob) {
           finalUploadBlob = blob;
           document.getElementById("previewSection").style.display = "none";
@@ -322,6 +330,7 @@
       document.getElementById("previewSection").style.display = "none";
       document.getElementById("decisionGate").style.display = "block";
       finalUploadBlob = null;
+      useSmartQR = false;
   }
 
   // --- 4. INTERNAL BLOCKCHAIN FUNCTION ---
@@ -359,7 +368,6 @@
     const fileInput = document.getElementById("uploadFile");
     const resultText = document.getElementById("uploadResult");
     
-    // IMPORTANT: Check if we have a Smart Blob, otherwise use Input File
     const fileToUpload = finalUploadBlob ? finalUploadBlob : fileInput.files[0];
     let uploadedCid = null; 
 
@@ -367,7 +375,7 @@
     
     resultText.innerText = "⏳ Step 1: Hashing File (Server)...";
     const formData = new FormData();
-    formData.append("document", fileToUpload); // Use the correct file source
+    formData.append("document", fileToUpload);
     const token = localStorage.getItem("token");
 
     try {
@@ -385,7 +393,6 @@
       // B. Upload to IPFS
       resultText.innerText = "⏳ Step 2: Uploading to IPFS...";
       const pinataData = new FormData();
-      // If blob, we should give it a name, otherwise Pinata might complain
       if (finalUploadBlob) {
         pinataData.append('file', fileToUpload, "smart-qr-doc.jpg");
       } else {
@@ -408,7 +415,6 @@
       resultText.innerText = `✅ Success! \nHash: ${docHash} \nCID: ${uploadedCid}`;
       window.currentDocHash = docHash; 
       
-      // If we made a Smart QR, we don't need the standalone generator
       if (!useSmartQR) {
         document.getElementById("qrSection").style.display = "block";
       } else {
@@ -431,10 +437,10 @@
     }
   }
 
-  // --- 7. HISTORY LOGIC ---
+  // --- 7. HISTORY LOGIC (Fixed Block Range + Column Align) ---
   async function loadHistory() {
     const tableBody = document.querySelector("#historyTable tbody");
-    tableBody.innerHTML = "<tr><td colspan='3'>Scanning blockchain...</td></tr>";
+    tableBody.innerHTML = "<tr><td colspan='4'>Scanning blockchain (this may take a moment)...</td></tr>";
 
     if (!window.ethereum) return alert("MetaMask required");
     
@@ -445,43 +451,56 @@
       const contract = new ethers.Contract(contractAddress, contractABI, provider);
 
       const currentBlock = await provider.getBlockNumber();
-      const CHUNK_SIZE = 40000; 
-      const TOTAL_BLOCKS_TO_SCAN = 200000; 
+      
+      const CHUNK_SIZE = 3000; // Small chunk size for safety
+      const TOTAL_BLOCKS_TO_SCAN = 40000; // Look back ~4 days
       
       let startBlock = currentBlock - TOTAL_BLOCKS_TO_SCAN;
       if (startBlock < 0) startBlock = 0;
 
       let allEvents = [];
-      console.log(`Scanning from ${startBlock} to ${currentBlock}...`);
+      console.log(`Scanning from ${startBlock} to ${currentBlock} in chunks of ${CHUNK_SIZE}...`);
 
+      // Loop through blocks
       for (let i = startBlock; i < currentBlock; i += CHUNK_SIZE) {
           const from = i;
           const to = Math.min(i + CHUNK_SIZE - 1, currentBlock);
+          
           try {
             const events = await contract.queryFilter("DocumentRegistered", from, to);
             allEvents.push(...events);
-          } catch (err) { console.warn("Skipping chunk"); }
+          } catch (err) { 
+            console.warn(`Skipping chunk ${from}-${to} due to RPC limit.`); 
+          }
       }
 
+      // Filter events for THIS user only
       const myEvents = allEvents.filter(e => e.args[2].toLowerCase() === userAddress.toLowerCase());
 
       tableBody.innerHTML = "";
       if (myEvents.length === 0) {
-         tableBody.innerHTML = "<tr><td colspan='3'>No recent documents found.</td></tr>";
+         tableBody.innerHTML = "<tr><td colspan='4'>No recent documents found.</td></tr>";
          return;
       }
 
+      // Show newest first
       myEvents.reverse().forEach(e => {
          const hash = e.args[0];
          const cid = e.args[1];
          const shortHash = hash.substring(0, 10) + "..." + hash.substring(60);
          const scanLink = window.location.href.replace('issuer.html', 'scan.html') + `?hash=${hash}`;
          
+         // 4 COLUMNS TO MATCH HEADER: Hash | IPFS | Block | Actions
          const row = `
            <tr>
              <td><a href="${scanLink}" target="_blank">🔗 ${shortHash}</a></td>
              <td><a href="https://gateway.pinata.cloud/ipfs/${cid}" target="_blank">📄 View File</a></td>
-             <td>${e.blockNumber}</td>
+             <td>#${e.blockNumber}</td>
+             <td>
+                <button onclick="viewAuditLogs('${hash}')" style="padding:5px 10px; font-size:0.8rem; margin:0; background:#3498db; color:white; border:none; cursor:pointer;">
+                    View Logs
+                </button>
+             </td>
            </tr>
          `;
          tableBody.innerHTML += row;
@@ -489,11 +508,50 @@
 
     } catch (e) {
       console.error(e);
-      tableBody.innerHTML = `<tr><td colspan='3' style="color:red">Error: ${e.message}</td></tr>`;
+      tableBody.innerHTML = `<tr><td colspan='4' style="color:red">Error: ${e.message}</td></tr>`;
     }
   }
 
-  // --- 8. QR CODE GENERATOR (Legacy) ---
+  // --- 8. AUDIT LOG FETCH FUNCTION ---
+  async function viewAuditLogs(hash) {
+      if (!hash.startsWith("0x")) hash = "0x" + hash;
+      
+      const modal = document.getElementById("auditModal");
+      const list = document.getElementById("auditList");
+      
+      list.innerHTML = "<tr><td colspan='3'>Loading logs...</td></tr>";
+      modal.style.display = "flex"; 
+
+      try {
+          const res = await fetch(`${API_URL}/logs/${hash}`);
+          const logs = await res.json();
+
+          if (logs.length === 0) {
+              list.innerHTML = "<tr><td colspan='3' style='text-align:center'>No verification history yet.</td></tr>";
+              return;
+          }
+
+          list.innerHTML = "";
+          logs.forEach(log => {
+              const date = new Date(log.timestamp).toLocaleString();
+              const color = log.status === "Success" ? "green" : "red";
+              
+              list.innerHTML += `
+                  <tr style="border-bottom:1px solid #eee;">
+                      <td style="padding:8px;">${date}</td>
+                      <td style="padding:8px; font-family:monospace;">${log.verifierWallet}</td>
+                      <td style="padding:8px; color:${color}; font-weight:bold;">${log.status}</td>
+                  </tr>
+              `;
+          });
+
+      } catch (e) {
+          console.error(e);
+          list.innerHTML = "<tr><td colspan='3' style='color:red'>Error loading logs.</td></tr>";
+      }
+  }
+
+  // --- 9. QR CODE GENERATOR (Legacy) ---
   function generateQR() {
     if (!window.currentDocHash) return alert("Upload first!");
     

@@ -6,17 +6,15 @@
   
   <script>
     (function checkAccess() {
-      const token = localStorage.getItem("token");
-      // Uncomment to force login
-      // if (!token) { alert("⚠️ Login required."); window.location.href = "index.html"; return; }
+      // Optional: Verifiers usually don't need login.
     })();
     
     function logout() { localStorage.clear(); window.location.href = "index.html"; }
   </script>
 
   <script src="https://cdn.jsdelivr.net/npm/ethers@6.7.0/dist/ethers.umd.min.js"></script>
-  
- <script src="config.js"></script>
+  <script src="config.js"></script>
+
   <style>
     /* SHARED THEME */
     body { font-family: "Times New Roman", Times, serif; background-color: #f4f1ea; color: #333; margin: 0; padding: 0; display: flex; flex-direction: column; align-items: center; min-height: 100vh; }
@@ -48,8 +46,58 @@
     .divider span { background: #fff; padding: 0 10px; position: absolute; top: -10px; left: 50%; transform: translateX(-50%); color: #777; font-size: 0.8rem; }
     
     .menu-btn { position: absolute; top: 20px; right: 20px; font-size: 1rem; background: #e74c3c; border: none; padding: 5px 15px; }
+
+    /* --- RICH CERTIFICATE CARD --- */
+    .cert-card {
+        background: white;
+        border: 2px solid #27ae60;
+        border-radius: 10px;
+        padding: 20px;
+        margin-top: 20px;
+        text-align: left;
+        box-shadow: 0 5px 15px rgba(39, 174, 96, 0.2);
+        display: none; /* Hidden by default */
+        position: relative;
+        overflow: hidden;
+    }
+
+    /* Watermark Effect */
+    .cert-card::before {
+        content: "✔ VERIFIED";
+        position: absolute;
+        top: 20px;
+        right: -20px;
+        font-size: 80px;
+        color: rgba(39, 174, 96, 0.1);
+        transform: rotate(-15deg);
+        font-weight: bold;
+        pointer-events: none;
+    }
+
+    .cert-row {
+        display: flex;
+        justify-content: space-between;
+        border-bottom: 1px solid #eee;
+        padding: 8px 0;
+        font-size: 0.9rem;
+    }
+    .cert-label { font-weight: bold; color: #555; }
+    .cert-value { font-family: monospace; color: #333; }
+    
+    .view-btn {
+        display: block;
+        width: 100%;
+        text-align: center;
+        background: #27ae60;
+        color: white;
+        padding: 10px;
+        text-decoration: none;
+        border-radius: 5px;
+        margin-top: 15px;
+        font-weight: bold;
+    }
+    .view-btn:hover { background: #219150; }
   </style>
-  
 </head>
 <body>
 
@@ -73,25 +121,69 @@
     <br>
     <button onclick="verifyByInput()">Verify Hash String</button>
     
-    <div id="verifyResult">
-      Waiting for input...
+    <div id="verifyResult" style="margin-top: 20px; min-height: 20px;">Waiting for input...</div>
+
+    <div id="certCard" class="cert-card">
+        <h3 style="margin: 0 0 15px 0; color: #27ae60;">✅ Document Verified</h3>
+        
+        <div class="cert-row">
+            <span class="cert-label">📅 Registered On:</span>
+            <span class="cert-value" id="certDate">Loading...</span>
+        </div>
+        
+        <div class="cert-row">
+            <span class="cert-label">🏛️ Issued By:</span>
+            <span class="cert-value" id="certIssuer">Loading...</span>
+        </div>
+        
+        <div class="cert-row">
+            <span class="cert-label">🧱 Block Number:</span>
+            <span class="cert-value" id="certBlock">Loading...</span>
+        </div>
+
+        <div class="cert-row">
+            <span class="cert-label">🔐 Document Hash:</span>
+            <span class="cert-value" id="certHash">...</span>
+        </div>
+
+        <a id="certLink" href="#" target="_blank" class="view-btn">📄 View Original Document</a>
     </div>
   </div>
 
 <script>
   // --- CONFIGURATION ---
-  const API_URL = CONFIG.API_URL;;
+  const API_URL = CONFIG.API_URL;
   const contractAddress = CONFIG.CONTRACT_ADDRESS;
   const contractABI = [
+    { "anonymous": false, "inputs": [ { "indexed": true, "internalType": "bytes32", "name": "fileHash", "type": "bytes32" }, { "indexed": false, "internalType": "string", "name": "ipfsCid", "type": "string" }, { "indexed": false, "internalType": "address", "name": "owner", "type": "address" } ], "name": "DocumentRegistered", "type": "event" },
     { "inputs": [ { "internalType": "bytes32", "name": "_fileHash", "type": "bytes32" } ], "name": "getCid", "outputs": [ { "internalType": "string", "name": "", "type": "string" } ], "stateMutability": "view", "type": "function" }
   ];
 
-  // --- INTERNAL BLOCKCHAIN FUNCTION ---
+  // --- 1. CORE VERIFICATION LOGIC ---
   async function verifyHashOnBlockchain(hash) {
+    const resultDiv = document.getElementById("verifyResult");
+    const certCard = document.getElementById("certCard");
+    
+    // Reset UI
+    resultDiv.style.display = "block";
+    resultDiv.innerHTML = "⏳ Checking Registry...";
+    resultDiv.style.color = "blue";
+    resultDiv.style.borderLeft = "none";
+    resultDiv.style.backgroundColor = "#f9f9f9";
+    certCard.style.display = "none";
+
     if (!window.ethereum) {
-      alert("MetaMask is required to read from the blockchain.");
-      return false;
+      alert("MetaMask is required.");
+      return;
     }
+
+    // Attempt to get user wallet for logging (Optional)
+    let userWallet = "Anonymous";
+    try {
+        const provider = new ethers.BrowserProvider(window.ethereum);
+        const signers = await provider.listAccounts();
+        if (signers.length > 0) userWallet = signers[0].address;
+    } catch (e) {}
 
     try {
       const provider = new ethers.BrowserProvider(window.ethereum);
@@ -99,93 +191,138 @@
 
       if (!hash.startsWith("0x")) hash = "0x" + hash;
 
+      // A. Check Existence
       const cid = await contract.getCid(hash);
-      console.log("Found CID:", cid);
-      return cid; 
+      
+      if (!cid || cid === "") {
+          throw new Error("Document not found");
+      }
+
+      console.log("✅ Found CID:", cid);
+      
+      // B. Fetch Metadata & Show Card
+      await fetchDocumentDetails(contract, provider, hash, cid);
+      
+      // Hide the loading text (Success!)
+      resultDiv.style.display = "none"; 
+      
+      // Log Success
+      await logVerificationAttempt(hash, userWallet, "Success");
 
     } catch (error) {
-      console.warn("Hash not found or error:", error);
-      return false; 
+      console.warn(error);
+      resultDiv.innerHTML = `
+        <div style="background:#fadbd8; color:#c0392b; padding:15px; border-left:5px solid #c0392b;">
+            <strong>❌ Verification Failed</strong><br>
+            This document hash was not found in the registry.
+        </div>
+      `;
+      // Log Failure
+      await logVerificationAttempt(hash, userWallet, "Failed");
     }
   }
 
-  // --- UI HELPER: SHOW RESULTS ---
-  function displayResult(cid) {
-    const resultText = document.getElementById("verifyResult");
-    if (cid) {
-        resultText.style.color = "darkgreen";
-        resultText.style.borderLeft = "4px solid darkgreen";
-        resultText.style.backgroundColor = "#e8f5e9";
-        resultText.innerHTML = `
-            <h4 style="margin:0; margin-bottom:5px;">✅ Verified Authenticity!</h4>
-            <span style="font-size:0.9rem">The document hash matches our blockchain records.</span><br><br>
-            <strong>🔗 View Original:</strong> 
-            <a href="https://gateway.pinata.cloud/ipfs/${cid}" target="_blank" style="color: blue; text-decoration: underline;">
-                Open in IPFS
-            </a>
-        `;
-    } else {
-        resultText.style.color = "#c0392b";
-        resultText.style.borderLeft = "4px solid #c0392b";
-        resultText.style.backgroundColor = "#fadbd8";
-        resultText.innerHTML = `
-            <h4 style="margin:0; margin-bottom:5px;">❌ Verification Failed</h4>
-            <span style="font-size:0.9rem">This document hash was not found in the registry. It may be modified or fake.</span>
-        `;
-    }
+  // --- 2. METADATA FETCHING (FIXED FOR RPC LIMITS) ---
+  async function fetchDocumentDetails(contract, provider, hash, cid) {
+      const certCard = document.getElementById("certCard");
+      
+      // Populate basic data immediately
+      document.getElementById("certHash").innerText = hash.substring(0, 10) + "..." + hash.substring(60);
+      document.getElementById("certLink").href = `https://gateway.pinata.cloud/ipfs/${cid}`;
+      
+      certCard.style.display = "block";
+      document.getElementById("certDate").innerText = "Scanning recent history...";
+      document.getElementById("certIssuer").innerText = "Scanning...";
+      document.getElementById("certBlock").innerText = "...";
+
+      try {
+          // ⚠️ FIX: DO NOT SCAN FROM BLOCK 0
+          // Scan only the last 50,000 blocks to find the event
+          const currentBlock = await provider.getBlockNumber();
+          const scanRange = 50000; 
+          const startBlock = Math.max(0, currentBlock - scanRange);
+
+          console.log(`Scanning logs from ${startBlock} to ${currentBlock}...`);
+
+          const filter = contract.filters.DocumentRegistered(hash);
+          
+          // Use queryFilter with explicit range
+          const events = await contract.queryFilter(filter, startBlock, currentBlock);
+
+          if (events.length > 0) {
+              const event = events[0];
+              const blockNumber = event.blockNumber;
+              const issuer = event.args[2]; 
+
+              const block = await provider.getBlock(blockNumber);
+              const date = new Date(block.timestamp * 1000).toLocaleString();
+
+              document.getElementById("certDate").innerText = date;
+              document.getElementById("certIssuer").innerText = issuer.substring(0, 10) + "...";
+              document.getElementById("certBlock").innerText = "#" + blockNumber;
+          } else {
+              // If not found in recent blocks, show "Archived" status instead of failing
+              document.getElementById("certDate").innerText = "Verified (Archived)";
+              document.getElementById("certIssuer").innerText = "Verified Issuer";
+              document.getElementById("certBlock").innerText = "Older than 50k blocks";
+          }
+      } catch (e) {
+          console.error("Error fetching metadata:", e);
+          document.getElementById("certDate").innerText = "Available on Blockchain";
+          document.getElementById("certIssuer").innerText = "Available on Blockchain";
+      }
   }
 
-  // --- LOGIC 1: VERIFY BY INPUT ---
+  // --- 3. DATABASE LOGGING ---
+  async function logVerificationAttempt(hash, wallet, status) {
+      try {
+          await fetch(`${API_URL}/log-verification`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ hash, wallet, status })
+          });
+          console.log("📝 Logged:", status);
+      } catch (e) {
+          console.error("Logging failed", e);
+      }
+  }
+
+  // --- 4. BUTTON HANDLERS ---
   async function verifyByInput() {
     const hashInput = document.getElementById("manualHash").value.trim();
-    const resultText = document.getElementById("verifyResult");
-
     if (hashInput.length < 10) { alert("Please enter a valid hash"); return; }
-
-    resultText.innerHTML = "⏳ Checking Blockchain Registry...";
-    const cid = await verifyHashOnBlockchain(hashInput);
-    displayResult(cid);
+    
+    await verifyHashOnBlockchain(hashInput);
   }
 
-  // --- LOGIC 2: VERIFY BY FILE ---
   async function verifyByFile() {
     const fileInput = document.getElementById("verifyFile");
-    const resultText = document.getElementById("verifyResult");
+    const resultDiv = document.getElementById("verifyResult");
 
-    if (!fileInput.files.length) { alert("Please select a file to verify"); return; }
+    if (!fileInput.files.length) { alert("Please select a file"); return; }
 
-    resultText.innerHTML = "⏳ Generating Hash...";
-    resultText.style.color = "#2c3e50"; 
-    resultText.style.borderLeft = "3px solid #888";
-
+    resultDiv.style.display = "block";
+    resultDiv.innerHTML = "⏳ Generating Hash...";
+    
     const formData = new FormData();
     formData.append("document", fileInput.files[0]);
-    const token = localStorage.getItem("token"); 
+    const token = localStorage.getItem("token") || ""; 
 
     try {
-      // Get Hash from Server
       const res = await fetch(`${API_URL}/upload`, {
         method: "POST",
         headers: { "Authorization": `Bearer ${token}` },
         body: formData
       });
 
-      if (res.status === 401 || res.status === 403) {
-          alert("Session expired. Please login again."); logout(); return;
-      }
-
       const data = await res.json();
       const documentHash = data.hash; 
-      console.log("Calculated Hash:", documentHash);
       
-      resultText.innerHTML = "⏳ Checking Blockchain Registry...";
-      
-      const cid = await verifyHashOnBlockchain(documentHash);
-      displayResult(cid);
+      await verifyHashOnBlockchain(documentHash);
 
     } catch (error) {
       console.error(error);
-      resultText.innerText = "⚠️ Error during verification. Check console.";
+      resultDiv.innerText = "⚠️ Error calculating hash. Check console.";
     }
   }
 </script>
